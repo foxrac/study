@@ -1,0 +1,48 @@
+aws ec2 linux로 인스턴스 생성
+
+설치가능한 자바 버전 확인
+$ sudo yum list | grep idk
+자바 설치
+$ sudo yum install java-1.8.0-openjdk
+Is this ok 나오면 y. 입력 후 진행
+자바가 설치되었나 확인
+$ java -version
+
+java 설치
+$ sudo yum install java-1.8.0-openjdk-devel.x86_64
+
+환경변수 설정
+경로 확인
+$ which java
+  /usr/bin/java //결과값
+$ readlink -f /usr/bin/java
+  /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.252.b09-2.amzn2.0.1.x86_64 //결과값
+$vi /etc/profile
+$ export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.252.b09-2.amzn2.0.1.x86_64/jre/bin/java
+$ export PATH=$PATH:$JAVA_HOME/bin
+$ export CLASSPATH=$JAVA_HOME/jre/lib:$JAVA_HOME/lib/tools.jar
+설정된내용 확인
+$ echo $JAVA_HOME
+$ echo $PATH
+$ echo $CALSSPATH
+
+[ec2-user@ip-172-31-4-127 ~]$ which java
+/usr/bin/java
+[ec2-user@ip-172-31-4-127 ~]$ readlink -f /usr/bin/java
+/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.342.b07-1.amzn2.0.1.x86_64/jre/bin/java
+
+톰캣설치
+$ wget 다운로드 링크
+압축풀기
+$ tar xvfz apache-tomcat-8.5.84.tar.gz
+파일위치변경
+$ mv apache-tomcat-8.5.84 /usr/local/tomcta8.5
+환경변수 설정
+$ vi /etc/profile
+Export CATALINA_HOME=/usr/local/tomcat8.5
+
+Local pc에서 프로젝트 war파일로 빌드 후 ec2 서버에 배포
+Filezila 로 war 파일을 서버에 전송
+$ usr/local/tomcat8.5/webapps 에 root.war 파일 옮김
+톰캣 실행
+
