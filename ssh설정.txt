@@ -1,0 +1,52 @@
+# ssh 
+#개요 
+#jenkins 실행시 접속을 id password로 하던걸 보안상 이유로 변경
+#사용내용 jenkins 서버에 키 생성 후 was에 키 입력
+
+#ssh란
+#	서버에 접속 할 때 비밀번호 대신 key 를 제출하는 방식
+
+#ssh key는 언제 사용하는가 
+#	비밀번호 보다 높은 보안
+#	로그인 없이 자동으로 서버에 접속
+
+#작동방식
+#	키를 생성하면 공개키(id_rsa.pub)와 비공개키(id_rsa)가 만들어진다.
+#	공개키는 원격서버에 비공개키는 클라이언트에 위치시킨다.
+#	로그인할때 가지고있는 비공개키를 서버에 전송한다.
+#	이 과정에서 비밀번호 입력하는 과정을 대신한다.
+
+#키 생성 (Jenkins)
+	ssh-keyset -t rsa
+
+#경로,비밀번호 등은 스킵 (엔터)
+#비밀번호 X , 경로 $home/.ssh 에 생성
+
+#해당 경로에서 key 확인 후 내용 복사
+	cd .ssh
+	ll
+	cat id_rsa
+	cat id_rsa.pub
+
+#was 접속
+#톰캣으로 경로 이동
+	cd /home/tomcat
+
+#.ssh 폴더가 있으면 이동 없으면 생성
+	ll
+	mkdir .ssh
+	cd .ssh
+
+#authorized_keys 파일 수정 없으면 생성 후 수정
+#복사해온 id_rsa_pub 키를 붙여 넣음
+	vi authorized_keys
+
+#만든 파일 권한 변경
+	chmod 600 authorized_keys
+
+
+#Jenkins 설정
+#Jenkins 관리
+#시스템 설정
+#Key 에 위에서 복사한 id_rsa 키를 붙여넣는다.
+
