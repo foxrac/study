@@ -1,0 +1,239 @@
+## db table 조회 후 엑셀로 추출
+## 1. table명으로 조회
+## 2. query로 조회
+
+
+##Controller
+
+/**
+     * 엑셀 다운로드(사용자 지정 테이블)
+     * 추후 검색조건 추가
+     * @param response,id,projectName,limit
+     * @return
+     */
+
+@GetMapping(value = "/exportExcel/{tableName}")
+public String exportExcel(HttpServletResponse response,@PathVariable String tableName,String getLimit,String orderBy) {
+	return excelService.exportExcel(response,tableName,getLimit,orderBy,null);
+}
+
+
+##예시 param  :  select * from table
+/**
+     * 엑셀 다운로드(사용자 지정 쿼리)
+     * 추후 검색조건 추가
+     * @param response,id,projectName,limit
+     * @return
+     */
+	@ApiOperation(value = "엑셀 다운로드(사용자 지정 쿼리)", notes = "엑셀 다운로드(사용자 지정 쿼리)")
+	@PostMapping(value = "/exportExcel")
+	public void exportExcelQuery(HttpServletResponse response,@RequestBody QueryParamVO queryParamVO) {
+		excelService.exportExcelQuery(response,queryParamVO);
+		
+	}
+
+
+##Service
+##테이블명으로 입력받은경우
+public String exportExcel(HttpServletResponse response,String tableName ,String getLimit,String orderBy,String loginIdFirst) {
+	String query = excelMakeQuery(tableName,getLimit,orderBy,loginIdFirst);
+	if(query.startsWith("select")) {
+		findTableQuery(response,query,tableName);
+	}else {
+		return query;
+	}
+	return "success";
+}
+
+##쿼리문으로 입력받은경우
+public void exportExcelQuery(HttpServletResponse response,QueryParamVO queryParamVO) {
+		String query = queryParamVO.getSql();
+        Map<String, Object> paramsMap = queryParamVO.getParams();
+        List<Map<String, Object>> resultList = namedParameterJdbcTemplate.queryForList(query, paramsMap);
+        if(resultList != null && resultList.size() > 0){
+        	excelExport(response,resultList,"query");
+        }
+}
+
+
+## 받은 parameter로 조회 query문 생성
+## default limit 은 10
+
+public String excelMakeQuery(String tableName ,String getLimit,String orderBy,String loginIdFirst) {
+	long limit = 10;
+	String query = "select * from ";
+	Map map = new HashMap<String,Object>();
+	if(null==tableName && tableName.equals("") && tableName.length()==0) {
+		return "테이블명을 입력하세요.";
+	}else if(checkTableName(tableName)) {
+		query += "aaa." + tableName;
+		map.put("tableName", tableName);
+	}else {
+		return "해당 테이블명이 없습니다.";
+	}
+	if(loginIdFirst!=null && !"".equals(loginIdFirst) && loginIdFirst.length()!=0) {
+		query += " where login_id like '" + loginIdFirst + "%'";
+	}
+	if(orderBy != null ) {
+		query += " order by " + orderBy;
+		map.put("columnName", orderBy);
+		if(!checkColumName(map)) {
+			return "해당 칼럼명이 없습니다.";
+		}
+	}
+	if(null!=getLimit && !getLimit.equals("") && getLimit.length()>0) {
+		limit = Long.parseLong(getLimit);
+		query += " limit " + limit;
+	}else {
+		query += " limit " + 10;
+	}
+	return query;
+}
+
+
+##Query 실행한 데이터를 exceldownload 하는 매소드로 전송
+//queryForList로 쿼리 실행후 값을 List로 받음
+
+public String findTableQuery(HttpServletResponse response,String query,String tableName) {
+	try {
+		HashMap<String, Object> paramsMap = new HashMap<String, Object>();
+		List<Map<String, Object>> resultList = namedParameterJdbcTemplate.queryForList(query, paramsMap);
+		if(resultList != null && resultList.size() > 0){
+			excelExport(response,resultList,tableName);
+		}
+	}catch(OutOfMemoryError e) {
+		return "OutOfMemory";
+	}catch(Exception e) {
+		return "fail";
+	}
+	return "success";
+}
+
+
+##List로 받은 데이터를 excel로 export
+
+public void excelExport(HttpServletResponse response,List<Map<String,Object>> dataList,String tableName){
+	try {
+		String fileName = tableName + "_excel.xlsx";
+		Workbook workbook = new XSSFWorkbook();
+		Sheet sheet = workbook.createSheet();
+		try {
+		        Row row;
+		        Cell cell;
+	        	int rowNo = 0;
+	        
+			if(dataList.size() > 0) {
+				//excel header start 
+				ArrayList<String> keyList = new ArrayList<String>();
+				for(String keyName : dataList.get(0).keySet()) {
+					keyList.add(keyName);
+				}
+				row = sheet.createRow(rowNo++);
+				for(int j=0;j<keyList.size();j++) {
+					cell = row.createCell(j);
+					cell.setCellValue(keyList.get(j));
+				}
+				
+				//excel header end
+				
+				
+				for(int i = 0 ; i < dataList.size(); i++) {		
+					row = sheet.createRow(rowNo++);
+					for(int j=0;j<keyList.size();j++) {
+						cell = row.createCell(j);
+						cell.setCellValue(nullCheck(dataList.get(i).get(keyList.get(j))));
+					}
+				}
+			}
+		}catch(Exception e) {
+			e.printStackTrace();
+		}
+		// 컨텐츠 타입과 파일명 지정
+        response.setContentType("ms-vnd/excel");
+        response.setHeader("Content-Disposition", "attachment;filename="+fileName);
+
+        // Excel File Output
+        workbook.write(response.getOutputStream());
+        workbook.close();
+	}catch(IOException e) {
+		e.printStackTrace();
+	}
+}
+
+
+     /**
+     * null 체크
+     * value가 null이면 빈값으로, 
+     * null이 아니면 toString후 return
+     * @param value
+     * @return String
+     */
+	public String nullCheck(Object value) {
+		
+		if(null==value) {
+			return "";
+		}else {
+			return value.toString();
+		}
+	}
+	/**
+     * 테이블 명이 존재 하는지 체크
+     * where schemaname=test 
+     * @param tableName
+     * @return boolean
+     */
+	public boolean checkTableName(String tableName) {
+		return excelMapper.checkTableName(tableName);
+	}
+     /**
+     * 해당 테이블에 컬럼명이 존재 하는지 체크
+     * @param tableName
+     * @return boolean
+     */
+	public boolean checkColumName(Map columnMap) {
+		return excelMapper.checkColumName(columnMap);
+	}
+
+##xml
+<select id="findProject" parameterType="ProjectVO" resultType="map" >
+		SELECT *
+        FROM ${tableName}
+        order by #{orderBy} 
+        limit #{limit}
+</select>
+<select id="checkTableName" parameterType="string" resultType="boolean">
+	SELECT EXISTS(
+	SELECT tablename FROM PG_TABLES WHERE schemaname ='test'
+	AND tablename =#{tableName}
+	);
+</select>
+<select id="checkColumName" parameterType="Map" resultType="boolean">
+	SELECT EXISTS(	
+	SELECT column_name FROM INFORMATION_SCHEMA.columns
+	WHERE table_name=#{tableName}
+	AND column_name =#{columnName}
+	);
+</select>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
