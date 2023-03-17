@@ -1,0 +1,41 @@
+## java 에서 restTemplate을 이용하여 Rest api 호출 
+
+##MultiValueMap : 키 중복이 가능한 맵
+##ResponseEntity : HttpEntity 를 상송받아 구현한 클래스 HttpStatus,HttpHeaders,HttpBody를 포함한다.
+
+//restApi url
+String uri = "gitlab.co.kr/projects";
+
+List<Map<String,Object>> projects = (List<Map<String,Object>>) callGetRestApi(uri,makeHttpHeader(null),null);
+
+
+Private HttpHeaders makeHttpHeader(String privateToken){
+	HttpHeaders header = new HttpHeaders();
+
+	if(privateToken != null){
+		header.add("PRIVATE-TOKEN",privateToken);
+	}else{
+		header.add("PRIVATE-TOKEN","발급받은 토큰 값");
+	}
+	return header;
+}
+
+
+//body가 list로 파싱이 안되면 Map으로 파싱
+Private Object callGetRestApi(String uri,HttpHeaders header,MultiValueMap<String,Ogject>){
+	ResponseEntity<String> res = getRestApi(uri,header,map);
+	Object result;
+	JsonParser jsonParser = JsonParserFactory.getJsonParser();
+	try{
+		result = jsonParser.parseList(response.getBody());
+	}catch(){
+		result = jsonParser.parseMap(response.getBody());
+	}
+	return result;
+}
+
+public ResponseEntity<String> getRestApi(String uri,HttpHeaders headers,MultiValueMap<String,String>params){
+	HttpEntity<MultiValueMap<String,String> entity = new HttpEntity<>(params,headers);
+	ResponseEntity<String> respEntity = restTemplate.exchange(uri,HttpMethod.get,entity,String.class);
+	return respEntity;
+}
