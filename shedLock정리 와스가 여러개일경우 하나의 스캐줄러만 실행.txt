@@ -1,0 +1,114 @@
+## Was가 여러개, 또는 다른 이유로 Scheduler가 여러번 돌 경우 해결 방안 (스카우터라는 보안쪽 감지 프로그램으로 인해서 Was에서 한번 스카우터에서 한번 돌아 두번 실행이 되었었음)
+
+##해결방안 
+
+# 1. ip체크 후 조건을 건다.
+
+# 2. ShedLock 라이브러리 사용
+
+
+# 1번 서버에 Was를 구성 해 놓았을 경우 
+# if(InetAddress.getLocalHost().getHostAddress().trim.equals("10.217.01.01")) {
+	//해당 아이피일때만 실행
+  }
+
+# 2 docker를 이용해 container로 서버 구성 해 놓았을 경우 IP가 변경되기때문에 1번과 같이 해결 할 수 없음
+#   ShedLock을 이용해서 한개의 서버에서 돌고 있으면 다른 서버에 락을 걸어 돌지 않게 함
+
+
+# 2-1 application.yml 설정
+	Spring:
+	   datasource:
+	      url:jdbc:mariadb://localhost:3308/test
+	      driver-class-name:org.mariadb.jdbc.Driver
+
+# 2-2 db에 테이블 생성
+	CREATE TABLE sherlock(
+		name VARCHAR(64),
+		lock_until TIMESTAMP(3) NULL,
+		locked_at TIMESTAMP(3) NULL,
+		locked_by VARCHAR(255),
+		PRIMARY KEY(name)
+	)
+# 2-3 maven또는 gradle 추가 pom.xml
+	<dependency>
+		<groupId>net.javacrumbs.shedlock</groupId>
+		<artifactId>shedlock-spring</artifactId>
+		<version>4.42.0</version>
+	</dependency>
+	<dependency>
+		<groupId>net.javacrumbs.shedlock</groupId>
+		<artifactId>shedlock-provider-jdbc-template</artifactId>
+		<version>4.42.0</version>
+	</dependency>
+	
+# 2-4 config 설정
+
+	@Configuration
+	Public class SchedulerConfiguration(){
+		@Bean
+		public LockProvider lockProvider(DataSource dataSource){
+			return new JdbcTemplateLockProvider(dataSource);
+		}
+	}
+
+# 2-5 해당 스캐줄러에 어노테이션 추가 (EnableSchedulerLock,SchedulerLock)
+	
+
+	@Component
+	@EnableSchedulerLock(defaultLockAtMostFor="PT10S")
+	public class Scheduler{
+
+		@Scheduled(cron="0 */2 * * * *")
+		@SchedulerLock(name="SchedulerLock",lockAtMostForString="PT10S",lockAtLeastForString="PT10S")
+		public void shedLockTest(){
+			for(int i = 0 ; i < 1000000; i++){
+				System.out.println(" i = " + i + "  " + i);
+			}
+		}
+	}
+	
+### 실행 테스트 
+##  적용 전 테스트
+#   위의 내용에서 어노테이션을 주석하고 ShedLock 적용이 안된상태로 실행 EnableSchedulerLock,SchedulerLock 
+1. 위의 내용으로 프로젝트를 5개를 만듬
+2. shedLockTest의 System.out.println에서 하드코딩으로 되어있는 i = 을 i,j,a,b,c 로 프로젝트마다 각각 변경
+3. Application.yml파일에 있는 포트를 각각 8000,8100,8200,8300,8400 으로 변경
+4. Run 시키고 2분4분6분8분.... 이될때까지 기다림.
+
+결과 
+j = 1  1
+j = 2  2
+j = 3  3
+i = 1  1
+i = 2  2
+i = 3  3
+a = 1  1
+a = 2  2
+a = 3  3
+...
+이런식으로 무분별하게 로그가 섞여서 찍힘
+
+## 적용 후 테스트
+#위의 내용에서 어노테이션 주석한 부분만 주석해제 후 위와같이 실행
+결과
+j = 1  1
+j = 2  2
+j = 3  3
+j = 4  4
+j = 5  5
+...
+#생성한 table에 있는 내용
+select * from sherlock;
+	name		lock_until		locked_at		locked_by
+1	SchedulerLock	2023-04-05 14:30:10.010	2023-04-05 14:30:10.018	DESKTOP-HDR46JK
+
+결과 
+#먼저 실행되는 톰켓에서 db insert후 insert 된 내용으로 스캐줄러를 실행하고 안하고를 판단
+
+여러번 테스트 결과 로그에 매번 j가 찍히진 않음
+어떤 프로젝트의 스캐줄러가 돌지는 모르겠으나 한번만 도는건 확인함.
+
+
+
+
